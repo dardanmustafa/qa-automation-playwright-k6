@@ -1,6 +1,14 @@
-import { test as base, expect, type APIRequestContext } from '@playwright/test';
+import { test as base, expect, type APIRequestContext, type PlaywrightTestOptions, type PlaywrightWorkerArgs } from '@playwright/test';
 
 const token = process.env.OSM_ACCESS_TOKEN?.trim();
+
+/** Requests as the signed-in user. Also usable outside a test, e.g. for clean-up in `afterAll`. */
+export function newSignedInContext(
+  playwright: PlaywrightWorkerArgs['playwright'],
+  { baseURL, extraHTTPHeaders }: Partial<Pick<PlaywrightTestOptions, 'baseURL' | 'extraHTTPHeaders'>>,
+) {
+  return playwright.request.newContext({ baseURL, extraHTTPHeaders: { ...extraHTTPHeaders, Authorization: `Bearer ${token}` } });
+}
 
 /**
  * Tests send anonymous requests with Playwright's built-in `request` fixture, and requests as a
@@ -10,10 +18,7 @@ const token = process.env.OSM_ACCESS_TOKEN?.trim();
 export const test = base.extend<{ signedIn: APIRequestContext }>({
   signedIn: async ({ playwright, baseURL, extraHTTPHeaders }, use, testInfo) => {
     testInfo.skip(!token, 'OSM_ACCESS_TOKEN is not set - see README "OpenStreetMap access token"');
-    const signedIn = await playwright.request.newContext({
-      baseURL,
-      extraHTTPHeaders: { ...extraHTTPHeaders, Authorization: `Bearer ${token}` },
-    });
+    const signedIn = await newSignedInContext(playwright, { baseURL, extraHTTPHeaders });
     await use(signedIn);
     await signedIn.dispose();
   },

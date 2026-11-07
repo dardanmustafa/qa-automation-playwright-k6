@@ -21,6 +21,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  typecheck:
+    # Playwright runs TypeScript without checking the types, so passing tests don't prove the code type-checks
+    name: Type check (TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
   ui-tests:
     name: UI tests (PrestaShop, Chromium + WebKit)
     runs-on: ubuntu-latest

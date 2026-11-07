@@ -38,11 +38,11 @@ It is written for two kinds of readers:
 
 Why these choices:
 
-- **Why the PrestaShop demo:** of the suggested shops, OpenCart's demo is behind a "verify you are human" check that automation must not bypass. Demoblaze has no search box, so "search by three criteria" would not be possible. PrestaShop has keyword search, categories and filters, plus a complete checkout that uses "bank wire" or "check" payment, so no card details are ever entered.
+- **Why the PrestaShop demo:** of the public demo shops considered, OpenCart's demo is behind a "verify you are human" check that automation must not bypass. Demoblaze has no search box, so "search by three criteria" would not be possible. PrestaShop has keyword search, categories and filters, plus a complete checkout that uses "bank wire" or "check" payment, so no card details are ever entered.
 - **A fresh shop for every run:** the demo creates a temporary shop per visitor. Before any test runs, the suite waits until that shop answers correctly ([BUG-007](../bugs/BUG-007.md) explains why). So every run starts from the same clean data.
 - **A new customer per test:** tests can run in parallel without sharing a cart or orders.
 
-**Out of scope:** the shop's back office (admin), real payments, emails, mobile screen sizes, Firefox (left out on request), visual or layout comparison, and security testing beyond a basic SQL injection check of the sign-in form (TC-LOGIN-13).
+**Out of scope:** the shop's back office (admin), real payments, emails, mobile screen sizes, Firefox, visual or layout comparison, and security testing beyond a basic SQL injection check of the sign-in form (TC-LOGIN-13).
 
 ---
 
@@ -105,7 +105,7 @@ The shop offers three different ways to narrow down products, and each is tested
 | **Criterion 1 – keyword** | | | | | |
 | TC-SEARCH-01 | Search finds the right products | Type `mug` in the search box and press Enter. | Heading *Search results for "mug"*; 5 products, each with "mug" in its name; the count shown ("There are 5 products") matches the list. | Smoke | ✅ Pass |
 | TC-SEARCH-02 | Suggestions appear while typing | Slowly type `notebook` in the search box. | A drop-down shows the 3 notebooks before Enter is pressed. | Medium | ✅ Pass |
-| TC-SEARCH-03 | Upper/lower case does not matter | Search `mug`, then `MUG`. | Exactly the same products. | Low | ✅ Pass |
+| TC-SEARCH-03 | Upper/lower case does not matter | Search `mug`, then `MUG`. | Both searches list the same 5 products. | Low | ✅ Pass |
 | TC-SEARCH-04 | A word that matches nothing gives "no results" (run with `qqqq` and `asdfgh`) | Search a nonsense word. | Heading *No search results for "…"*, no products. | High | ❌ Known bug [BUG-001](../bugs/BUG-001.md): unrelated products are shown |
 | **Criterion 2 – category** | | | | | |
 | TC-SEARCH-05 | A sub-category shows only its products | Main menu: open **Clothes**, click **Men**. | Page *Men*, breadcrumb includes *Clothes*, only *Hummingbird printed t-shirt* is listed. | Smoke | ✅ Pass |
@@ -113,8 +113,8 @@ The shop offers three different ways to narrow down products, and each is tested
 | TC-SEARCH-07 | A main category includes its sub-categories | Main menu: click **Clothes**. | The t-shirt (Men) and the sweater (Women) are both listed. | Medium | ✅ Pass |
 | **Criterion 3 – attributes** | | | | | |
 | TC-SEARCH-08 | Filters narrow down the list | Open **Clothes** (2 products). Filter **Size: M** (still 2). Add **Color: Black**. | One product is left (*Hummingbird printed t-shirt*), and the filters appear in the page address so the result can be shared. | Smoke | ✅ Pass |
-| TC-SEARCH-09 | Sorting by price works both ways | Open **Accessories**, sort *Price, low to high*, then *Price, high to low*. | Prices go up, then down. | Medium | ✅ Pass |
-| TC-SEARCH-10 | Sorting by name works | Open **Accessories**, sort *Name, A to Z*. | Names are in alphabetical order. | Low | ✅ Pass |
+| TC-SEARCH-09 | Sorting by price works both ways | Open **Accessories**, sort *Price, low to high*, then *Price, high to low*. | Prices go up, then down, and every product of the category is still listed after each sort. | Medium | ✅ Pass |
+| TC-SEARCH-10 | Sorting by name works | Open **Accessories**, sort *Name, A to Z*. | The same products, with names in alphabetical order. | Low | ✅ Pass |
 | TC-SEARCH-11 | Each product's picture is described correctly | Open **Clothes › Women** and compare the product title with its picture description. | Same product name in both. | Low | ❌ Known bug [BUG-005](../bugs/BUG-005.md) |
 
 ## Flow 3 – Shopping cart
@@ -219,6 +219,8 @@ sequenceDiagram
 | API-NOTE-16 | Close once, conflict on second close, reopen | `close` › `close` › `reopen` | **200** *closed* › **409** *"The note … was closed at"* › **200** *open* | ✅ Pass 🔑 |
 | API-NOTE-17 | Normal users cannot delete notes | `DELETE /notes/{id}.json` | **403** Forbidden; the note still exists | ✅ Pass 🔑 |
 
+The notes the tests create stay on the sandbox server. Normal users cannot delete notes (API-NOTE-17 checks exactly that). Any signed-in user can close a note, but a run without a token cannot, and the suite does not close its notes even with one, so most stay open. Every note says *"Automated API test … safe to ignore"*. Most sit at random spots in the ocean near 0°, 0°; the two from API-NOTE-04 are at the corners of the world, (90, 180) and (−90, −180).
+
 ## Flow 6 – Map data: the life of a point
 
 ```mermaid
@@ -257,7 +259,7 @@ sequenceDiagram
 | API-MAP-12 | A closed changeset cannot be used | close, then `PUT /node/create` in it | **200**, then **409** *"The changeset … was closed at"* | ✅ Pass 🔑 |
 | API-MAP-13 | Map data can be read with the header `Accept-Encoding: gzip,deflate,br` (no spaces, as Playwright sends it) | `GET /map.json?bbox=…` | **200** | ❌ Known bug [BUG-013](../bugs/BUG-013.md): **406** |
 
-The steps of Flow 6 depend on each other, so they run in order and stop at the first failure. The last step closes the changeset; if an earlier step fails, OpenStreetMap closes it by itself after an hour.
+The steps of Flow 6 depend on each other, so they run in order and stop at the first failure. When a step fails, a clean-up step still deletes the point and closes the changeset, so a failed run (or a retry in CI) leaves no test point on the map. It tries both even if one of them fails, and if the clean-up itself fails, the run reports it.
 
 **HTTP status codes covered:**
 
@@ -270,7 +272,7 @@ The steps of Flow 6 depend on each other, so they run in order and stop at the f
 
 A separate, detailed report covers the test design, the results, the impact on response time, the optimal response time for modern web apps, and the analysis of HTTP/S responses: **[docs/load-test/README.md](load-test/README.md)**.
 
-In one sentence: **1000 new visitors in 15 seconds had no measurable effect** on QuickPizza's homepage. The median was 138 ms before and 139 ms during the load, with 0% errors.
+In one sentence: **no slowdown was observed in this run** while 1000 new visitors arrived over 15 seconds (about 67 per second, not 1000 at the same time). The reference user's median was 138 ms before (22 visits) and 139 ms during the load (11 visits), with 0% errors.
 
 ---
 
@@ -282,9 +284,11 @@ In one sentence: **1000 new visitors in 15 seconds had no measurable effect** on
 | UI – WebKit | 42 | 34 | 8 | 0 | 0 |
 | API (with token) | 36 | 34 | 2 | 0 | 0 |
 | API (without token) | 36 | 22 | 2 | 12 | 0 |
-| Load test thresholds | 4 | 4 | – | – | – |
+| Load test thresholds (recorded run) | 4 | 4 | – | – | – |
 
-Bugs found: **11**, plus **2** improvement suggestions. See the [bug list](../bugs/README.md).
+The load test now has 7 thresholds. Since the recorded run, "checks passed" became "valid visits" (a visit only counts when all its checks pass), and 3 new ones check the reference user's visits before, during and after the load. The recorded run meets all 7, because every check passed in every phase ([details](load-test/README.md#passfail-criteria-k6-thresholds)).
+
+Bug tickets: **11** (6 defects, 3 configuration issues, 1 environment problem, 1 recommendation), plus **2** improvement suggestions. See the [bug list](../bugs/README.md).
 
 # Coverage at a glance
 
@@ -295,7 +299,7 @@ Bugs found: **11**, plus **2** improvement suggestions. See the [bug list](../bu
 | Adding products to the cart | Flow 3, TC-CART-01…10 |
 | Checkout process | Flow 4, TC-CHK-01…06 |
 | HTML reports | Allure report of UI and API together (`npm run report`), Playwright HTML reports for debugging (`npm run report:ui`, `npm run report:api`), and the k6 HTML dashboard |
-| Bug tickets | [`bugs/`](../bugs/README.md): 11 bugs (BUG-001…007, 010…013) and 2 improvement suggestions (IMP-001, 002) |
+| Bug tickets | [`bugs/`](../bugs/README.md): 11 bug tickets (BUG-001…007, 010…013) and 2 improvement suggestions (IMP-001, 002) |
 | Test flows and test cases | this document |
 | CI | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (GitHub Actions) and [`.gitlab-ci.yml`](../.gitlab-ci.yml) (GitLab CI) |
 | API: create, modify, delete data | Notes (API-NOTE-01, 15, 16) and nodes (API-MAP-05…12) |

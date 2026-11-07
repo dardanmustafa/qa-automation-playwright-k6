@@ -57,9 +57,12 @@ export class CheckoutPage extends BasePage {
 
   /** Step 3. */
   async chooseCarrier(carrierName: string) {
-    await this.activeStep.getByRole('radio', { name: new RegExp(`^${carrierName}`) }).check();
-    // Let the page settle: the order summary is refreshed in the background after a carrier change.
-    await this.page.waitForLoadState('networkidle').catch(() => undefined);
+    const carrier = this.activeStep.getByRole('radio', { name: new RegExp(`^${carrierName}`) });
+    if (await carrier.isChecked()) return; // already selected: the shop sends nothing
+    // The shop saves the choice in the background (and then refreshes the order summary): wait for that answer.
+    const saved = this.page.waitForResponse((response) => response.url().includes('action=selectDeliveryOption') && response.ok());
+    await carrier.check();
+    await saved;
   }
 
   async continueToPayment() {

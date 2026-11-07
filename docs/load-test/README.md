@@ -7,7 +7,7 @@
 
 | Question | Answer |
 |---|---|
-| Did 1000 users in 15 s slow the site down? | **No.** The homepage answered in a median of **138 ms before**, **139 ms during** and **138 ms after** the load. p95 moved from 141 ms to 140 ms. 0 errors out of 1,056 requests. |
+| Did 1000 users in 15 s slow the site down? | **No slowdown was observed in this run.** The 1000 visitors arrived over 15 s, about 67 per second (not 1000 at the same time). The homepage answered the reference user in a median of **138 ms before**, **139 ms during** and **138 ms after** the load (22, 11 and 22 visits). p95 moved from 141 ms to 140 ms. 0 errors out of 1,056 requests. |
 | How long does a new visitor's first request take? | About **415 ms** for the homepage's HTML: ~137 ms to open the connection, ~141 ms for encryption (TLS), ~138 ms for the answer. Almost all of that is the distance between Europe and the server in Ohio (USA). The page's JS and CSS files and the time to display the page come on top; this test doesn't measure them. |
 | What is a good response time for a modern web app? | Server answer (TTFB) **under 200 ms** is great, under 800 ms acceptable. The main content of a page should be visible within **2.5 s**, and the page should react to a click within **200 ms**. See [below](#what-is-a-good-response-time-for-a-modern-web-application). |
 | Anything wrong in the HTTP/S responses? | Yes, mostly about performance: no compression, no caching headers on static files, no HSTS, and plain `http://` does not redirect to HTTPS (it times out). See [the analysis](#analysis-of-a-few-https-responses). |
@@ -58,14 +58,17 @@ Results are reported as **percentiles**, not just averages. "p95 = 141 ms" means
 
 ### Pass/fail criteria (k6 thresholds)
 
-A run fails (k6 exit code 99) when any of these rules is broken during the load phase:
+A run fails (k6 exit code 99) when any of these rules is broken:
 
-| Rule | Value |
-|---|---|
-| Failed requests | < 1% |
-| Homepage answer time, p95 | < 1000 ms |
-| Checks passed | > 99% |
-| Dropped visitors | 0 |
+| Phase | Rule | Value |
+|---|---|---|
+| load | Failed requests | < 1% |
+| load | Homepage answer time, p95 | < 1000 ms |
+| load | Valid visits | > 99% |
+| load | Dropped visitors | 0 |
+| before, during, after | Valid visits of the reference user | > 90% in each phase |
+
+A **valid visit** is one where all three checks pass: status 200, the QuickPizza page, and HTML. k6's built-in `checks` rate averages the checks instead, so if 2% of the pages had the wrong content, it would still show 99.3% and pass. The rules for before, during and after make sure the comparison is based on visits that actually worked.
 
 ### Choices made on purpose
 
@@ -95,11 +98,11 @@ Recorded on 23 Oct 2026 with `npm run load:test`. k6's own summary of that run i
 | load | 1001 | 0% | 138 ms | 138 ms | 140 ms | 141 ms | 142 ms | 146 ms | 138 ms | 137 ms | 140 ms |
 | after | 22 | 0% | 138 ms | 138 ms | 141 ms | 141 ms | 142 ms | 143 ms | 138 ms | 138 ms | 142 ms |
 
-All four pass/fail rules passed. The load phase shows 1001 requests because the arrival-rate scheduler rounds up by one visitor.
+All pass/fail rules passed. The run was recorded with the earlier four rules, which [`k6-summary.txt`](k6-summary.txt) shows (with "checks passed" instead of "valid visits"). It meets the current rules too: every check passed in every phase, 3,168 of 3,168, so every visit was valid. The load phase shows 1001 requests because the arrival-rate scheduler rounds up by one visitor.
 
 ### Did the load test have an impact on response time?
 
-**No measurable impact.** Comparing the reference user before and during the load:
+**No slowdown was observed in this run.** Comparing the reference user before and during the load:
 
 | | Before | During | Difference |
 |---|---:|---:|---:|
@@ -109,13 +112,13 @@ All four pass/fail rules passed. The load phase shows 1001 requests because the 
 
 The ±1 ms differences are normal network jitter. The slowest of the 1001 visitors (146 ms) was only 8 ms slower than the median, and the slowest request of the whole run (168 ms) came in the *before* phase, without any load.
 
-**Why there is no measurable impact:**
+**Why no slowdown showed up:**
 
 1. **Most of the answer time is network distance.** TTFB (~138 ms) is about the same as the TCP connect time (~137 ms), which is one network round trip. In the [analysis below](#analysis-of-a-few-https-responses), the two differ by −1 to 3 ms for each of the five requests. That suggests network latency dominates; the server's own processing time was not measured directly. The test ran from Europe, and the site's DNS name points to an AWS load balancer in `us-east-2` (Ohio), `k8s-k6quickp-quickpiz-054c2324eb-….us-east-2.elb.amazonaws.com`. Every answer also sets AWS's load-balancer cookie, `AWSALB`.
 2. **67 requests per second for a 2.8 KB page is light** for a service behind an AWS load balancer. The `k8s-` at the start of the load balancer's name is how AWS names load balancers that it creates for Kubernetes, so the site most likely runs on Kubernetes.
 3. **The load did not reach the expensive parts:** no JS/CSS downloads and no API calls.
 
-**What this does *not* show:** where the site's limit is. The test answers "does 1000 users in 15 s hurt?", not "how many users before it breaks?". To find the limit, run a **stress test** against your own copy of QuickPizza. Raise the arrival rate step by step (`ramping-arrival-rate`), include the assets and the `/api/pizza` call, and watch for the point where p95 or the error rate starts to climb. One run from one location is also only one sample. Repeat it, ideally from the region where the users are.
+**What this does *not* show:** where the site's limit is. The test answers "does 1000 users in 15 s hurt?", not "how many users before it breaks?". To find the limit, run a **stress test** against your own copy of QuickPizza. Raise the arrival rate step by step (`ramping-arrival-rate`), include the assets and the `/api/pizza` call, and watch for the point where p95 or the error rate starts to climb. The comparison also rests on few measurements: the reference user made 22 visits before and only 11 during the load. And one run from one location is only one sample. Repeat it, ideally from the region where the users are.
 
 ## What is a good response time for a modern web application?
 

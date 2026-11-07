@@ -32,6 +32,14 @@ default:
   before_script:
     - npm ci --cache .npm --prefer-offline
 
+typecheck:
+  # Playwright runs TypeScript without checking the types, so passing tests don't prove the code type-checks
+  extends: .npm-ci
+  stage: test
+  timeout: 5m
+  script:
+    - npm run typecheck
+
 ui-tests:
   extends: .npm-ci
   stage: test

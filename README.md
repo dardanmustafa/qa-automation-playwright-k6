@@ -1,18 +1,22 @@
 # QA automation: PrestaShop UI, OpenStreetMap API and k6 load test
 
+[![QA automation](https://github.com/dardanmustafa/qa-automation-playwright-k6/actions/workflows/ci.yml/badge.svg)](https://github.com/dardanmustafa/qa-automation-playwright-k6/actions/workflows/ci.yml)
+
 Automated tests for three kinds of systems:
 
 | Part | What | Tools | Where to start |
 |---|---|---|---|
 | **1. E-commerce UI** | Login, search by 3 criteria, cart, checkout on the [PrestaShop live demo](https://demo.prestashop.com/#/en/front) | Playwright, TypeScript, Page Object Model, Allure report | [`ui/`](ui/) |
 | **2. REST API** | Create, read, update and delete map data on the [OpenStreetMap API](https://wiki.openstreetmap.org/wiki/API_v0.6) (development server) | Playwright API testing, TypeScript, Allure report | [`api/`](api/) |
-| **3. Load test** | 1000 users visit the [QuickPizza](https://quickpizza.grafana.com) homepage within 15 s | k6 | [`load/`](load/) |
+| **3. Load test** | 1000 new visitors arrive at the [QuickPizza](https://quickpizza.grafana.com) homepage within 15 s | k6 | [`load/`](load/) |
 
 📄 **Documents:**
 
 - [Test flows and test cases](docs/test-plan.md), written for both technical and non-technical readers
 - [Load test report](docs/load-test/README.md)
-- [Bug tickets](bugs/README.md): 11 bugs found, plus 2 improvement suggestions
+- [Bug tickets](bugs/README.md): 11 tickets (6 of them code defects), plus 2 improvement suggestions
+
+🔎 **Good places to start reading:** a UI test, [checkout](ui/tests/checkout.spec.ts); an API test, [the life of a map point](api/tests/map-data.spec.ts); and a bug traced to the server's source code, [BUG-013](bugs/BUG-013.md).
 
 ## Results at a glance
 
@@ -20,9 +24,9 @@ Automated tests for three kinds of systems:
 |---|---|
 | UI, Chromium + WebKit | **42 tests**, each run in both browsers (so the report shows 84). 34 pass. 8 fail on purpose: they reproduce the 6 shop bugs below (two of them with two inputs each) and link to their tickets |
 | API | **36 tests**. 34 pass. 2 fail on purpose: they reproduce the 2 API bugs below. Without an OpenStreetMap token, the 12 tests that need a signed-in user are skipped (see [below](#openstreetmap-access-token)) |
-| Load | 1000 users in 15 s: **no measurable impact** on response time (median 138 ms before, 139 ms during), 0% errors |
+| Load | 1000 visitors over 15 s, about 67 per second (not 1000 at once): **no slowdown observed in this run** (reference user's median 138 ms before, 139 ms during, from 22 and 11 visits), 0% errors |
 
-**11 bugs**, each with a ticket that has steps to reproduce by hand ([list](bugs/README.md)):
+**11 bug tickets**, each with steps to reproduce by hand ([list](bugs/README.md)). 6 are code defects, 3 configuration issues, 1 a demo-environment problem and 1 a performance recommendation. By area:
 
 - **Shop, 6** (BUG-001 to 006), found by exploratory testing. The UI tests reproduce all 6.
 - **OpenStreetMap API, 2** (BUG-010, BUG-013), found when API tests failed. The API tests reproduce both.
@@ -43,7 +47,7 @@ cp .env.example .env   # optional, see "Configuration"
 |---|---|
 | `npm run test:ui` | UI tests in Chromium and WebKit (takes about 2–3 minutes) |
 | `npm run test:api` | API tests |
-| `npm test` | API tests, then UI tests, then the **Allure report** of both, in one HTML file (`allure-report/index.html`). Both suites always run, the report is built even when a test fails, and the command fails if either suite fails |
+| `npm test` | API tests, then UI tests, then the **Allure report** of both, in one HTML file (`allure-report/index.html`). Both suites always run, the report is built even when a test fails, and the command fails if either suite or the report build fails |
 | `npm run report` | Rebuild the Allure report from the last UI and API runs and open it |
 | `npm run report:ui` / `npm run report:api` | Open Playwright's own report of one suite, with a screenshot, video and trace of every failed test (for debugging) |
 | `npm run load:test` | k6 load test; HTML dashboard in `load/results/dashboard.html` |
@@ -108,6 +112,7 @@ The same pipeline is defined twice, once for GitHub and once for GitLab:
 
 | Job | What |
 |---|---|
+| Type check | `npm run typecheck` (`tsc --noEmit`). Playwright runs TypeScript without checking the types, so passing tests alone don't prove the code type-checks |
 | UI tests | Chromium + WebKit; uploads the Playwright report and the Allure results, and on GitLab a JUnit report for the pipeline's *Tests* tab |
 | API tests | Uses `OSM_ACCESS_TOKEN` when present (a GitHub secret, or a masked GitLab CI/CD variable); uploads the Playwright report and the Allure results, and on GitLab a JUnit report |
 | Allure report | Combines the UI and API results into one Allure report, a single HTML file (downloadable artifact) |

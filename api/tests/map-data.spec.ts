@@ -1,4 +1,4 @@
-import { expect, randomLocation, test } from '../fixtures';
+import { expect, newSignedInContext, randomLocation, test } from '../fixtures';
 
 /**
  * Map data = points (nodes) that become part of the map itself.
@@ -65,13 +65,48 @@ test.describe('Without login', () => {
 /**
  * One point goes through its whole life: created > read > moved > conflicting edit > deleted > gone.
  * The steps depend on each other, so they run in order and stop at the first failure.
- * The last step closes the changeset; if an earlier step fails, OSM closes it by itself after an hour.
+ * When a step fails, the later steps are skipped, so afterAll deletes the point and closes the changeset.
  */
 test.describe.serial('Create, modify and delete a point', () => {
   const start = randomLocation();
   let changesetId: number;
   let nodeId: number;
   let version: number;
+  let pointDeleted = false;
+  let changesetClosed = false;
+
+  // Runs after every attempt (also on a CI retry), so a failed run leaves no test point on the map.
+  // Each clean-up step is tried even when the one before failed, and any failure is reported.
+  test.afterAll(async ({ playwright }, testInfo) => {
+    if (!changesetId || changesetClosed) return;
+    const api = await newSignedInContext(playwright, testInfo.project.use);
+    const problems: string[] = [];
+    const attempt = async (what: string, step: () => Promise<void>) => {
+      try {
+        await step();
+      } catch (error) {
+        problems.push(`${what}: ${error instanceof Error ? error.message : error}`);
+      }
+    };
+
+    if (nodeId && !pointDeleted) {
+      await attempt(`delete point ${nodeId}`, async () => {
+        const current = await api.get(`node/${nodeId}.json`);
+        if (current.status() === 410) return; // already deleted
+        if (!current.ok()) throw new Error(`reading it answered ${current.status()}`);
+        const [node] = (await current.json()).elements;
+        const deleted = await api.delete(`node/${nodeId}`, osmXml('node', { id: nodeId, version: node.version, changeset: changesetId, lat: node.lat, lon: node.lon }));
+        if (!deleted.ok()) throw new Error(`answered ${deleted.status()} ${await deleted.text()}`);
+      });
+    }
+    await attempt(`close changeset ${changesetId}`, async () => {
+      const closed = await api.put(`changeset/${changesetId}/close`);
+      if (!closed.ok() && closed.status() !== 409) throw new Error(`answered ${closed.status()} ${await closed.text()}`); // 409: already closed
+    });
+    await api.dispose();
+
+    if (problems.length) throw new Error(`Clean-up failed, test data may be left on the map:\n- ${problems.join('\n- ')}`);
+  });
 
   test('API-MAP-05 Signed-in user opens a changeset (200)', async ({ signedIn }) => {
     const tags = { comment: 'Automated API test (QA automation) - safe to ignore', created_by: 'qa-automation-playwright-k6 (Playwright API tests)' };
@@ -140,6 +175,7 @@ test.describe.serial('Create, modify and delete a point', () => {
     const response = await signedIn.delete(`node/${nodeId}`, osmXml('node', { id: nodeId, version, changeset: changesetId, lat: node.lat, lon: node.lon }));
 
     expect(response.status()).toBe(200);
+    pointDeleted = true;
     expect(Number(await response.text())).toBe(version + 1);
     expect((await signedIn.get(`node/${nodeId}.json`)).status()).toBe(410);
   });
@@ -147,6 +183,7 @@ test.describe.serial('Create, modify and delete a point', () => {
   test('API-MAP-12 Closed changeset cannot be used for new edits (200, then 409)', async ({ signedIn }) => {
     const close = await signedIn.put(`changeset/${changesetId}/close`);
     expect(close.status()).toBe(200);
+    changesetClosed = true;
 
     const response = await signedIn.put('node/create', osmXml('node', { changeset: changesetId, ...randomLocation() }));
     expect(response.status()).toBe(409);

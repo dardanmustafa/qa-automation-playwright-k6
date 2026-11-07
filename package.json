@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "npm run test:api; api=$?; npm run test:ui; ui=$?; npm run -s report:build && echo 'Allure report: allure-report/index.html'; [ $api -eq 0 ] && [ $ui -eq 0 ]",
+    "test": "npm run test:api; api=$?; npm run test:ui; ui=$?; npm run -s report:build; report=$?; [ $report -eq 0 ] && echo 'Allure report: allure-report/index.html'; [ $api -eq 0 ] && [ $ui -eq 0 ] && [ $report -eq 0 ]",
     "test:ui": "playwright test -c playwright.ui.config.ts",
     "test:api": "playwright test -c playwright.api.config.ts",
     "report": "npm run report:build && allure open allure-report",

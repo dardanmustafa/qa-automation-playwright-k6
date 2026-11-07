@@ -1,5 +1,17 @@
 import { expect, test } from '../fixtures';
+import type { CatalogPage } from '../pages/CatalogPage';
 import { categories } from '../test-data';
+
+/** Opens Accessories and returns its product names (sorted), after checking the page really lists them all. */
+async function openAccessories(catalogPage: CatalogPage) {
+  await catalogPage.openCategory(categories.accessories);
+  await expect(catalogPage.heading).toHaveText('Accessories');
+  await expect(catalogPage.tiles.first()).toBeVisible();
+  const names = (await catalogPage.productNames()).sort();
+  expect(names.length).toBeGreaterThan(1);
+  expect(await catalogPage.announcedTotal(), 'all products must be on one page').toBe(names.length);
+  return names;
+}
 
 /**
  * "Searching products by three criteria":
@@ -30,9 +42,12 @@ test.describe('Criterion 1 - keyword', () => {
 
   test('TC-SEARCH-03 Keyword search is not case-sensitive', async ({ catalogPage }) => {
     await catalogPage.openSearchResults('mug');
+    await expect(catalogPage.tiles).toHaveCount(5); // two empty lists would also be "equal"
     const lowerCase = await catalogPage.productNames();
 
     await catalogPage.openSearchResults('MUG');
+    await expect(catalogPage.heading).toHaveText(/^Search results for "mug"$/i);
+    await expect(catalogPage.tiles).toHaveCount(5);
     expect(await catalogPage.productNames()).toEqual(lowerCase);
   });
 
@@ -96,24 +111,27 @@ test.describe('Criterion 3 - attributes (filters and sorting)', () => {
   });
 
   test('TC-SEARCH-09 Sorting by price orders products from cheapest to most expensive and back', async ({ catalogPage }) => {
-    await catalogPage.openCategory(categories.accessories);
+    const products = await openAccessories(catalogPage);
 
     await catalogPage.sortBy('Price, low to high');
+    expect((await catalogPage.productNames()).sort(), 'sorting must keep the same products').toEqual(products);
     const ascending = await catalogPage.productPrices();
-    expect(ascending.length).toBeGreaterThan(1);
+    expect(ascending).toHaveLength(products.length);
     expect(ascending).toEqual([...ascending].sort((a, b) => a - b));
 
     await catalogPage.sortBy('Price, high to low');
+    expect((await catalogPage.productNames()).sort(), 'sorting must keep the same products').toEqual(products);
     const descending = await catalogPage.productPrices();
+    expect(descending).toHaveLength(products.length);
     expect(descending).toEqual([...descending].sort((a, b) => b - a));
   });
 
   test('TC-SEARCH-10 Sorting by name orders products alphabetically', async ({ catalogPage }) => {
-    await catalogPage.openCategory(categories.accessories);
+    const products = await openAccessories(catalogPage);
 
     await catalogPage.sortBy('Name, A to Z');
-    const names = await catalogPage.productNames();
-    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    // The same products, now in alphabetical order (an empty list would be "sorted" too).
+    expect(await catalogPage.productNames()).toEqual([...products].sort((a, b) => a.localeCompare(b)));
   });
 });
 

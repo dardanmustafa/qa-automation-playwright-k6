@@ -19,6 +19,10 @@
  */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { Rate } from 'k6/metrics';
+
+/** Share of homepage visits where *every* check passed (status, content and type), per phase. */
+const validVisits = new Rate('valid_visits');
 
 const BASE_URL = __ENV.BASE_URL || 'https://quickpizza.grafana.com';
 const USERS = Number(__ENV.USERS || 1000);
@@ -47,22 +51,30 @@ export const options = {
     during: { executor: 'constant-vus', exec: 'singleUser', vus: 1, duration: `${SECONDS}s`, startTime: `${loadStart}s` },
     after: { executor: 'constant-vus', exec: 'singleUser', vus: 1, duration: `${BASELINE}s`, startTime: `${afterStart}s` },
   },
-  // Pass/fail criteria for the load phase
+  // Pass/fail criteria
   thresholds: {
+    // The load phase
     'http_req_failed{scenario:load}': ['rate<0.01'], // fewer than 1% errors
     'http_req_duration{scenario:load}': ['p(95)<1000'], // 95% of homepage answers under 1 s
-    'checks{scenario:load}': ['rate>0.99'],
+    // A visit only counts when all its checks pass. (The built-in "checks" rate averages the
+    // three checks, so 2% wrong pages would still score 99.3% and pass.)
+    'valid_visits{scenario:load}': ['rate>0.99'],
     dropped_iterations: ['count==0'], // every one of the users really got to visit
+    // The reference user: the before/during comparison only means something if its visits worked
+    'valid_visits{scenario:before}': ['rate>0.9'],
+    'valid_visits{scenario:during}': ['rate>0.9'],
+    'valid_visits{scenario:after}': ['rate>0.9'],
   },
 };
 
 function visitHomepage() {
   const response = http.get(`${BASE_URL}/`);
-  check(response, {
+  const allPassed = check(response, {
     'status is 200': (r) => r.status === 200,
     'is the QuickPizza page': (r) => typeof r.body === 'string' && r.body.includes('QuickPizza'),
     'is HTML': (r) => (r.headers['Content-Type'] || '').includes('text/html'),
   });
+  validVisits.add(allPassed);
 }
 
 /** One of the 1000 new visitors: visits the homepage once. */
