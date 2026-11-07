@@ -1,0 +1,143 @@
+name: QA automation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 5 * * 1-5' # every weekday at 05:00 UTC, to notice when the demo sites change
+  workflow_dispatch:
+    inputs:
+      run_load_test:
+        description: Also run the k6 load test (1000 users in 15 s against quickpizza.grafana.com)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-tests:
+    name: UI tests (PrestaShop, Chromium + WebKit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium webkit
+      - name: Run UI tests
+        run: npm run test:ui
+        env:
+          # Optional repository variable: test a fixed shop instead of a fresh demo.prestashop.com instance
+          SHOP_URL: ${{ vars.SHOP_URL }}
+      - name: Keep the Allure results for the combined report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: allure-results-ui
+          path: test-results/ui/allure-results
+          retention-days: 14
+      - name: Keep the Playwright report (with traces, screenshots and videos of failed tests)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-ui
+          path: playwright-report/ui
+          retention-days: 14
+
+  api-tests:
+    name: API tests (OpenStreetMap)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run API tests
+        run: npm run test:api
+        env:
+          # Without this secret the tests that need a signed-in user are skipped
+          OSM_ACCESS_TOKEN: ${{ secrets.OSM_ACCESS_TOKEN }}
+      - name: Keep the Allure results for the combined report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: allure-results-api
+          path: test-results/api/allure-results
+          retention-days: 14
+      - name: Keep the Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-api
+          path: playwright-report/api
+          retention-days: 14
+
+  report:
+    name: Allure report (UI + API)
+    needs: [ui-tests, api-tests]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # continue-on-error: still build the report from one suite when the other produced no results
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: allure-results-ui
+          path: test-results/ui/allure-results
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: allure-results-api
+          path: test-results/api/allure-results
+      - name: Build the report
+        run: npm run report:build
+      - name: Keep the report (a single HTML file, open it in any browser)
+        uses: actions/upload-artifact@v7
+        with:
+          name: allure-report
+          path: allure-report
+          retention-days: 30
+
+  load-test:
+    name: Load test (k6)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_load_test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: grafana/setup-k6-action@v1
+      - name: Run load test
+        run: k6 run --summary-mode=full load/homepage-load-test.js
+        env:
+          K6_WEB_DASHBOARD: 'true'
+          K6_WEB_DASHBOARD_EXPORT: load/results/dashboard.html
+      - name: Analyse HTTP/S responses
+        if: ${{ !cancelled() }}
+        run: k6 run --log-format=raw load/response-analysis.js
+      - name: Keep the HTML dashboard
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: load-test-dashboard
+          path: load/results/dashboard.html
+          retention-days: 30

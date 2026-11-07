@@ -1,0 +1,84 @@
+=== 1. Homepage (HTML document)
+GET https://quickpizza.grafana.com/
+Status 200 · HTTP/2.0 · tls1.3 · 2847 bytes
+Timing: getting a connection 334 ms (of which TCP connect 134 ms, TLS 150 ms) | send 0.1 ms | wait for server (TTFB) 134 ms | download 0.2 ms | request total 135 ms
+  Content-Type: text/html; charset=utf-8
+  Content-Length: 2847
+  Content-Encoding: (not sent)
+  Cache-Control: (not sent)
+  Etag: (not sent)
+  Last-Modified: (not sent)
+  Strict-Transport-Security: (not sent)
+  X-Content-Type-Options: (not sent)
+  Vary: Origin
+  Set-Cookie: AWSALB=k3NUv1t0oscsdy0TGJP1rlEdOWaiWp3eqsfoHCLSc6k5KCZLy21To5AMSisj3C68TYrWl8rmwrhzucY6lHR
+=== 2. Stylesheet (content-hashed static file)
+GET https://quickpizza.grafana.com/_app/immutable/assets/0.kLK4yNcK.css
+Status 200 · HTTP/2.0 · tls1.3 · 16151 bytes
+Timing: getting a connection 280 ms (of which TCP connect 135 ms, TLS 144 ms) | send 0.1 ms | wait for server (TTFB) 138 ms | download 135.0 ms | request total 273 ms
+  Content-Type: text/css; charset=utf-8
+  Content-Length: 16151
+  Content-Encoding: (not sent)
+  Cache-Control: (not sent)
+  Etag: (not sent)
+  Last-Modified: (not sent)
+  Strict-Transport-Security: (not sent)
+  X-Content-Type-Options: (not sent)
+  Vary: Origin
+  Set-Cookie: AWSALB=ffY4+MKZIHTo5ECrkMFoTqhytpYLgNr0lJX/KoBadged2QahexL0qV5TZu1siRA/bfSg4zhYuCycvSCSutC
+=== 3. Public JSON API
+GET https://quickpizza.grafana.com/api/quotes
+Status 200 · HTTP/2.0 · tls1.3 · 495 bytes
+Timing: getting a connection 285 ms (of which TCP connect 138 ms, TLS 147 ms) | send 0.1 ms | wait for server (TTFB) 137 ms | download 0.2 ms | request total 138 ms
+  Content-Type: application/json
+  Content-Length: 495
+  Content-Encoding: (not sent)
+  Cache-Control: (not sent)
+  Etag: (not sent)
+  Last-Modified: (not sent)
+  Strict-Transport-Security: (not sent)
+  X-Content-Type-Options: (not sent)
+  Vary: Origin
+  Set-Cookie: AWSALB=Q2CaIAYYQyB32A6osxC0gdtsIQw3O7cjKs7RDpyZb1sM1oI/diowxMJClEfZrOmxNVubcluZAHR37pPKUhr
+=== 4. Protected API without token
+POST https://quickpizza.grafana.com/api/pizza
+Status 401 · HTTP/2.0 · tls1.3 · 34 bytes
+Timing: getting a connection 283 ms (of which TCP connect 138 ms, TLS 144 ms) | send 0.1 ms | wait for server (TTFB) 137 ms | download 0.1 ms | request total 138 ms
+  Content-Type: application/json
+  Content-Length: 34
+  Content-Encoding: (not sent)
+  Cache-Control: (not sent)
+  Etag: (not sent)
+  Last-Modified: (not sent)
+  Strict-Transport-Security: (not sent)
+  X-Content-Type-Options: (not sent)
+  Vary: Origin
+  Set-Cookie: AWSALB=i+wttopvEhPwrEoehcqVaXbRDmHhbcblHn2P28Ltkv53fFT1r5fi3tCBsFXbq5s8bFNf2P/GTTkFs2wH9Fx
+=== 5. Page that does not exist
+GET https://quickpizza.grafana.com/this-page-does-not-exist
+Status 404 · HTTP/2.0 · tls1.3 · 19 bytes
+Timing: getting a connection 285 ms (of which TCP connect 139 ms, TLS 146 ms) | send 0.1 ms | wait for server (TTFB) 139 ms | download 0.2 ms | request total 139 ms
+  Content-Type: text/plain; charset=utf-8
+  Content-Length: 19
+  Content-Encoding: (not sent)
+  Cache-Control: (not sent)
+  Etag: (not sent)
+  Last-Modified: (not sent)
+  Strict-Transport-Security: (not sent)
+  X-Content-Type-Options: nosniff
+  Vary: Origin
+  Set-Cookie: AWSALB=QVEj3/61MDnbHZ7lw2MdagPVSz5Eo1Jk9ysSx6RwziFoZ4U9axN3e0enAHy3TgvDILfjA+nqcSNPeu264Py
+=== 6. Same homepage over plain HTTP (expect a redirect to HTTPS)
+GET http://quickpizza.grafana.com/
+Status 0 ·  · no TLS · 0 bytes
+Timing: getting a connection 0 ms (of which TCP connect 0 ms, TLS 0 ms) | send 0.0 ms | wait for server (TTFB) 0 ms | download 0.0 ms | request total 0 ms
+  Content-Type: (not sent)
+  Content-Length: (not sent)
+  Content-Encoding: (not sent)
+  Cache-Control: (not sent)
+  Etag: (not sent)
+  Last-Modified: (not sent)
+  Strict-Transport-Security: (not sent)
+  X-Content-Type-Options: (not sent)
+  Vary: (not sent)
+  Set-Cookie: (not sent)

@@ -1,0 +1,31 @@
+{
+  "name": "qa-automation-playwright-k6",
+  "version": "1.0.0",
+  "description": "QA automation: Playwright UI tests (PrestaShop demo), OpenStreetMap REST API tests and a k6 load test",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "npm run test:api; api=$?; npm run test:ui; ui=$?; npm run -s report:build && echo 'Allure report: allure-report/index.html'; [ $api -eq 0 ] && [ $ui -eq 0 ]",
+    "test:ui": "playwright test -c playwright.ui.config.ts",
+    "test:api": "playwright test -c playwright.api.config.ts",
+    "report": "npm run report:build && allure open allure-report",
+    "report:build": "allure awesome test-results/ui/allure-results test-results/api/allure-results --single-file --output allure-report --report-name \"QA automation: PrestaShop UI and OpenStreetMap API\" --group-by epic,parentSuite,suite,subSuite",
+    "report:ui": "playwright show-report playwright-report/ui",
+    "report:api": "playwright show-report playwright-report/api",
+    "load:test": "K6_WEB_DASHBOARD=true K6_WEB_DASHBOARD_EXPORT=load/results/dashboard.html k6 run --summary-mode=full load/homepage-load-test.js",
+    "load:analyse": "k6 run --log-format=raw load/response-analysis.js",
+    "typecheck": "tsc --noEmit",
+    "osm:token": "node api/scripts/get-osm-token.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "allure": "^3.20.1",
+    "allure-playwright": "^3.14.0",
+    "dotenv": "^18.0.9",
+    "typescript": "^7.0.2"
+  }
+}

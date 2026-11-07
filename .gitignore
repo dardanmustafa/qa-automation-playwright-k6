@@ -1,0 +1,10 @@
+node_modules/
+test-results/
+playwright-report/
+allure-results/
+allure-report/
+blob-report/
+.env
+.DS_Store
+load/results/*
+!load/results/.gitkeep
